@@ -44,7 +44,7 @@ func (s *store) GetAll() ([]*model.Frase, error) {
 }
 
 func (s *store) GetByID(id int) (*model.Frase, error) {
-	q := `SELECT id,frase,original,autor,categoria FROM frases WHERE id=?`
+	q := `SELECT id,frase,original,autor,categoria FROM frases WHERE id=$1`
 
 	f := &model.Frase{}
 	err := s.db.QueryRow(q, id).Scan(&f.ID, &f.Frase, &f.FraseIdiomaOriginal, &f.Autor, &f.Categoria)
@@ -68,22 +68,16 @@ func (s *store) GetRandom() (*model.Frase, error) {
 }
 
 func (s *store) Crear(frase *model.Frase) (*model.Frase, error) {
-	q := `INSERT INTO frases (frase, original, autor, categoria) VALUES (?,?,?,?)`
+	q := `INSERT INTO frases (frase, original, autor, categoria) VALUES ($1,$2,$3,$4) RETURNING id`
 
-	resp, err := s.db.Exec(q, frase.Frase, frase.FraseIdiomaOriginal, frase.Autor, frase.Categoria)
-	if err != nil {
+	if err := s.db.QueryRow(q, frase.Frase, frase.FraseIdiomaOriginal, frase.Autor, frase.Categoria).Scan(&frase.ID); err != nil {
 		return nil, err
 	}
-	id, err := resp.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-	frase.ID = int(id)
 	return frase, nil
 }
 
 func (s *store) Update(id int, frase *model.Frase) (*model.Frase, error) {
-	q := `UPDATE frases SET frase=?, original=?, autor=?, categoria=? WHERE id= ?`
+	q := `UPDATE frases SET frase=$1, original=$2, autor=$3, categoria=$4 WHERE id=$5`
 
 	_, err := s.db.Exec(q, frase.Frase, frase.FraseIdiomaOriginal, frase.Autor, frase.Categoria, id)
 	if err != nil {
@@ -93,7 +87,7 @@ func (s *store) Update(id int, frase *model.Frase) (*model.Frase, error) {
 	return frase, nil
 }
 func (s *store) Delete(id int) error {
-	q := `DELETE from frases WHERE id =?`
+	q := `DELETE FROM frases WHERE id=$1`
 
 	_, err := s.db.Exec(q, id)
 	if err != nil {

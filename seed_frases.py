@@ -1,8 +1,10 @@
 import json
+import os
+import sys
 import urllib.request
 import urllib.error
 
-url = "http://localhost:8000/frases"
+url = os.environ.get("API_URL") or (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000/frases")
 headers = {"Content-Type": "application/json"}
 
 data = [
