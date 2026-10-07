@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,7 +27,8 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		frases, err := h.service.ObtenTodasLasFrases()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("error al obtener frases: %v", err)
+			http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 			return
 		}
 
@@ -36,7 +38,8 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var frase model.Frase
 		if err := json.NewDecoder(r.Body).Decode(&frase); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Printf("error al decodificar frase: %v", err)
+			http.Error(w, "input invalido", http.StatusBadRequest)
 			return
 		}
 		creado, err := h.service.CrearFrase(frase)
@@ -45,7 +48,8 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "necesitamos una frase", http.StatusBadRequest)
 				return
 			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("error al crear frase: %v", err)
+			http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 			return
 		}
 
@@ -69,7 +73,8 @@ func (h *FraseHandler) HandleFraseRandom(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "no hay frases en la base", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("error al obtener frase random: %v", err)
+		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 		return
 	}
 
@@ -88,7 +93,12 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 	case http.MethodGet:
 		frase, err := h.service.ObtenFrasePorID(id)
 		if err != nil {
-			http.Error(w, "No lo encontramos!", http.StatusNotFound)
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "No lo encontramos!", http.StatusNotFound)
+				return
+			}
+			log.Printf("error al obtener frase por id: %v", err)
+			http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 			return
 		}
 
@@ -111,7 +121,8 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 				http.Error(w, "necesitamos una frase", http.StatusBadRequest)
 				return
 			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("error al actualizar frase: %v", err)
+			http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 			return
 		}
 
@@ -120,7 +131,8 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 
 	case http.MethodDelete:
 		if err := h.service.Borrar(id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("error al borrar frase: %v", err)
+			http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 			return
 		}
 

@@ -1,9 +1,11 @@
 package transport
 
 import (
+	"aprende-golang/internal/model"
 	"aprende-golang/internal/service"
 	"aprende-golang/internal/store"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,39 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// fakeStore implementa store.Store con errores inyectables por metodo,
+// para probar el mapeo de errores de DB del handler sin tocar SQLite.
+type fakeStore struct {
+	errGetAll    error
+	errGetByID   error
+	errGetRandom error
+	errCrear     error
+	errUpdate    error
+	errDelete    error
+}
+
+var _ store.Store = (*fakeStore)(nil)
+
+func (f *fakeStore) GetAll() ([]*model.Frase, error) { return nil, f.errGetAll }
+
+func (f *fakeStore) GetByID(id int) (*model.Frase, error) { return nil, f.errGetByID }
+
+func (f *fakeStore) GetRandom() (*model.Frase, error) { return nil, f.errGetRandom }
+
+func (f *fakeStore) Crear(frase *model.Frase) (*model.Frase, error) { return nil, f.errCrear }
+
+func (f *fakeStore) Update(id int, frase *model.Frase) (*model.Frase, error) {
+	return nil, f.errUpdate
+}
+
+func (f *fakeStore) Delete(id int) error { return f.errDelete }
+
+func setupHandlerConFake(t *testing.T, f *fakeStore) *FraseHandler {
+	t.Helper()
+	svc := service.New(f)
+	return New(svc)
+}
 
 func newTestDBTransport(t *testing.T) *sql.DB {
 	t.Helper()
@@ -92,5 +127,181 @@ func TestPutFraseIdNoExistenteDevuelve404(t *testing.T) {
 	}
 	if strings.TrimSpace(w.Body.String()) != "No lo encontramos!" {
 		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+}
+
+// hallazgo 5: un error de DB que NO es sql.ErrNoRows debe devolver 500
+// (antes todo error se disfrazaba de 404).
+func TestGetFrasePorIDConErrorDeBaseDevuelve500(t *testing.T) {
+	f := &fakeStore{errGetByID: errors.New("fallo de base simulado")}
+	h := setupHandlerConFake(t, f)
+
+	req := httptest.NewRequest(http.MethodGet, "/frases/999", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleFrasePorID(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("esperaba 500, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "error interno del servidor" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "fallo de base simulado") {
+		t.Fatalf("no debe filtrar el error crudo, body=%q", w.Body.String())
+	}
+}
+
+// hallazgo 5: sql.ErrNoRows sigue siendo 404.
+func TestGetFrasePorIDNoExistenteDevuelve404(t *testing.T) {
+	h := setupHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/frases/999", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleFrasePorID(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("esperaba 404, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "No lo encontramos!" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+}
+
+// hallazgo 6: el 500 de GET /frases no debe filtrar el error crudo de DB.
+func TestGetFrasesConErrorDeBaseNoFiltraError(t *testing.T) {
+	f := &fakeStore{errGetAll: errors.New("fallo de base simulado")}
+	h := setupHandlerConFake(t, f)
+
+	req := httptest.NewRequest(http.MethodGet, "/frases", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleFrases(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("esperaba 500, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "error interno del servidor" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "fallo de base simulado") {
+		t.Fatalf("no debe filtrar el error crudo, body=%q", w.Body.String())
+	}
+}
+
+func TestPostFrasesJSONInvalidoDevuelve400(t *testing.T) {
+	h := setupHandler(t)
+
+	body := `{"frase":`
+	req := httptest.NewRequest(http.MethodPost, "/frases", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.HandleFrases(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("esperaba 400, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "input invalido" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+}
+
+func TestHandleFrasesMetodoNoDisponibleDevuelve405(t *testing.T) {
+	h := setupHandler(t)
+
+	req := httptest.NewRequest(http.MethodPatch, "/frases", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleFrases(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("esperaba 405, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "Metodo no disponible!" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+}
+
+// hallazgo 6: 500s de POST, random, PUT y DELETE con body seguro.
+func TestPostFrasesConErrorDeBaseDevuelve500SinFiltrar(t *testing.T) {
+	f := &fakeStore{errCrear: errors.New("fallo de base simulado")}
+	h := setupHandlerConFake(t, f)
+
+	body := `{"frase":"Hola","original":"Hi","autor":"Yo","categoria":"test"}`
+	req := httptest.NewRequest(http.MethodPost, "/frases", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.HandleFrases(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("esperaba 500, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "error interno del servidor" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "fallo de base simulado") {
+		t.Fatalf("no debe filtrar el error crudo, body=%q", w.Body.String())
+	}
+}
+
+func TestGetFraseRandomConErrorDeBaseDevuelve500SinFiltrar(t *testing.T) {
+	f := &fakeStore{errGetRandom: errors.New("fallo de base simulado")}
+	h := setupHandlerConFake(t, f)
+
+	req := httptest.NewRequest(http.MethodGet, "/frases/random", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleFraseRandom(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("esperaba 500, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "error interno del servidor" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "fallo de base simulado") {
+		t.Fatalf("no debe filtrar el error crudo, body=%q", w.Body.String())
+	}
+}
+
+func TestPutFraseConErrorDeBaseDevuelve500SinFiltrar(t *testing.T) {
+	f := &fakeStore{errUpdate: errors.New("fallo de base simulado")}
+	h := setupHandlerConFake(t, f)
+
+	body := `{"frase":"Hola","original":"Hi","autor":"Yo","categoria":"test"}`
+	req := httptest.NewRequest(http.MethodPut, "/frases/1", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.HandleFrasePorID(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("esperaba 500, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "error interno del servidor" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "fallo de base simulado") {
+		t.Fatalf("no debe filtrar el error crudo, body=%q", w.Body.String())
+	}
+}
+
+func TestDeleteFraseConErrorDeBaseDevuelve500SinFiltrar(t *testing.T) {
+	f := &fakeStore{errDelete: errors.New("fallo de base simulado")}
+	h := setupHandlerConFake(t, f)
+
+	req := httptest.NewRequest(http.MethodDelete, "/frases/1", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleFrasePorID(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("esperaba 500, obtuve %d; body=%s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "error interno del servidor" {
+		t.Fatalf("body inesperado: %q", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "fallo de base simulado") {
+		t.Fatalf("no debe filtrar el error crudo, body=%q", w.Body.String())
 	}
 }
