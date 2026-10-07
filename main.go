@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 )
 
@@ -42,9 +43,10 @@ func main() {
 	fraseHandler := transport.New(fraseService)
 
 	// configurar las rutas
-	http.HandleFunc("/frases", fraseHandler.HandleFrases)
-	http.HandleFunc("/frases/", fraseHandler.HandleFrasePorID)
-	http.HandleFunc("/frases/random", fraseHandler.HandleFraseRandom)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/frases", fraseHandler.HandleFrases)
+	mux.HandleFunc("/frases/", fraseHandler.HandleFrasePorID)
+	mux.HandleFunc("/frases/random", fraseHandler.HandleFraseRandom)
 
 	dbPath, err := filepath.Abs("./frases.db")
 	if err == nil {
@@ -61,5 +63,5 @@ func main() {
 	fmt.Println("🗑️  DELETE /frases/{id} -Eliminar una frase")
 
 	//empezar y escuchar al servidor
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	log.Fatal(http.ListenAndServe(":8000", transport.WithCors(os.Getenv("CORS_ALLOWED_ORIGINS"), mux)))
 }

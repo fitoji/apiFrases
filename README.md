@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS frases (
 
 ## Límites actuales
 
-- Sin CORS: un frontend en otro origen necesita un proxy o cabeceras CORS.
+- CORS incluido: por defecto responde `Access-Control-Allow-Origin: *` y maneja los preflights `OPTIONS`. Para restringir orígenes: `CORS_ALLOWED_ORIGINS="https://app.com,https://admin.com" go run .` (solo esos orígenes reciben las cabeceras).
 - Sin tests automatizados.
 - Sin autenticación: el CRUD está abierto.
 - Puerto fijo en `8000`.
