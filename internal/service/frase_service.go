@@ -22,6 +22,10 @@ func (s *Service) ObtenFrasePorID(id int) (*model.Frase, error) {
 	return s.store.GetByID(id)
 }
 
+func (s *Service) ObtenFraseRandom() (*model.Frase, error) {
+	return s.store.GetRandom()
+}
+
 func (s *Service) CrearFrase(frase model.Frase) (*model.Frase, error) {
 	if frase.Frase == "" {
 		return nil, errors.New("necesitamos una frase")

@@ -3,11 +3,14 @@ package store
 import (
 	"aprende-golang/internal/model"
 	"database/sql"
+	"errors"
+	"fmt"
 )
 
 type Store interface {
 	GetAll() ([]*model.Frase, error)
 	GetByID(id int) (*model.Frase, error)
+	GetRandom() (*model.Frase, error)
 	Crear(frase *model.Frase) (*model.Frase, error)
 	Update(id int, frase *model.Frase) (*model.Frase, error)
 	Delete(id int) error
@@ -50,6 +53,20 @@ func (s *store) GetByID(id int) (*model.Frase, error) {
 	}
 	return f, nil
 }
+func (s *store) GetRandom() (*model.Frase, error) {
+	q := `SELECT id,frase,original,autor,categoria FROM frases ORDER BY RANDOM() LIMIT 1`
+
+	f := &model.Frase{}
+	err := s.db.QueryRow(q).Scan(&f.ID, &f.Frase, &f.FraseIdiomaOriginal, &f.Autor, &f.Categoria)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("no hay frases en la base: %w", err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
 func (s *store) Crear(frase *model.Frase) (*model.Frase, error) {
 	q := `INSERT INTO frases (frase, original, autor, categoria) VALUES (?,?,?,?)`
 

@@ -3,7 +3,9 @@ package transport
 import (
 	"aprende-golang/internal/model"
 	"aprende-golang/internal/service"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,13 +45,32 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(creado)
 
 	default:
 		http.Error(w, "Metodo no disponible!", http.StatusMethodNotAllowed)
 	}
+}
+func (h *FraseHandler) HandleFraseRandom(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Metodo no disponible!", http.StatusMethodNotAllowed)
+		return
+	}
+
+	frase, err := h.service.ObtenFraseRandom()
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "no hay frases en la base", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(frase)
 }
 
 func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) {
