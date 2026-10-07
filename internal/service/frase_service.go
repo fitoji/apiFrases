@@ -26,16 +26,18 @@ func (s *Service) ObtenFraseRandom() (*model.Frase, error) {
 	return s.store.GetRandom()
 }
 
+var ErrFraseVacia = errors.New("necesitamos una frase")
+
 func (s *Service) CrearFrase(frase model.Frase) (*model.Frase, error) {
 	if frase.Frase == "" {
-		return nil, errors.New("necesitamos una frase")
+		return nil, ErrFraseVacia
 	}
 	return s.store.Crear(&frase)
 }
 
 func (s *Service) ActualizarFrase(id int, frase model.Frase) (*model.Frase, error) {
 	if frase.Frase == "" {
-		return nil, errors.New("necesitamos una frase")
+		return nil, ErrFraseVacia
 	}
 	return s.store.Update(id, &frase)
 }

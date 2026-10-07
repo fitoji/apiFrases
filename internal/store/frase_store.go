@@ -32,13 +32,16 @@ func (s *store) GetAll() ([]*model.Frase, error) {
 	}
 	defer rows.Close()
 
-	var frases []*model.Frase
+	frases := make([]*model.Frase, 0)
 	for rows.Next() {
 		b := &model.Frase{}
 		if err := rows.Scan(&b.ID, &b.Frase, &b.FraseIdiomaOriginal, &b.Autor, &b.Categoria); err != nil {
 			return nil, err
 		}
 		frases = append(frases, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return frases, nil
 }
@@ -79,9 +82,16 @@ func (s *store) Crear(frase *model.Frase) (*model.Frase, error) {
 func (s *store) Update(id int, frase *model.Frase) (*model.Frase, error) {
 	q := `UPDATE frases SET frase=$1, original=$2, autor=$3, categoria=$4 WHERE id=$5`
 
-	_, err := s.db.Exec(q, frase.Frase, frase.FraseIdiomaOriginal, frase.Autor, frase.Categoria, id)
+	res, err := s.db.Exec(q, frase.Frase, frase.FraseIdiomaOriginal, frase.Autor, frase.Categoria, id)
 	if err != nil {
 		return nil, err
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if aff == 0 {
+		return nil, sql.ErrNoRows
 	}
 	frase.ID = id
 	return frase, nil

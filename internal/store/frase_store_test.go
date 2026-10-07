@@ -3,6 +3,7 @@ package store
 import (
 	"aprende-golang/internal/model"
 	"database/sql"
+	"errors"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -137,6 +138,34 @@ func TestUpdatePersisteCambios(t *testing.T) {
 	if obtenida.Frase != "Nueva" || obtenida.FraseIdiomaOriginal != "orig2" ||
 		obtenida.Autor != "Autor2" || obtenida.Categoria != "cat2" {
 		t.Errorf("campos no persistidos: %+v", obtenida)
+	}
+}
+
+func TestGetAllTablaVaciaDevuelveSliceVacio(t *testing.T) {
+	s := New(newTestDB(t))
+
+	todas, err := s.GetAll()
+	if err != nil {
+		t.Fatalf("GetAll: %v", err)
+	}
+	if todas == nil {
+		t.Fatal("esperaba slice vacío no-nil")
+	}
+	if len(todas) != 0 {
+		t.Fatalf("esperaba 0 frases, obtuve %d", len(todas))
+	}
+}
+
+func TestUpdateIdNoExistenteDevuelveErrNoRows(t *testing.T) {
+	s := New(newTestDB(t))
+
+	actualizada := nuevaFrase("Nueva", "orig2", "Autor2", "cat2")
+	_, err := s.Update(999, actualizada)
+	if err == nil {
+		t.Fatal("Update de un ID inexistente debe fallar")
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("esperaba sql.ErrNoRows, obtuve %v", err)
 	}
 }
 

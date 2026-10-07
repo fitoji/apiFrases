@@ -41,6 +41,10 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 		}
 		creado, err := h.service.CrearFrase(frase)
 		if err != nil {
+			if errors.Is(err, service.ErrFraseVacia) {
+				http.Error(w, "necesitamos una frase", http.StatusBadRequest)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -99,6 +103,14 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 
 		updated, err := h.service.ActualizarFrase(id, frase)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "No lo encontramos!", http.StatusNotFound)
+				return
+			}
+			if errors.Is(err, service.ErrFraseVacia) {
+				http.Error(w, "necesitamos una frase", http.StatusBadRequest)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
