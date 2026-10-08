@@ -11,11 +11,14 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
 
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 )
 
 func main() {
@@ -23,7 +26,8 @@ func main() {
 	dsn := os.Getenv("DATABASE_URL")
 	driver := "sqlite3"
 	if dsn == "" {
-		dsn = "./frases.db"
+		// WAL + busy_timeout vía DSN: evita corrupción y contienda de locks (hallazgo 11)
+		dsn = "./frases.db?_journal_mode=WAL&_busy_timeout=5000"
 	} else {
 		driver = "pgx"
 	}
@@ -32,6 +36,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	// pooling acotado por motor (hallazgo 11): SQLite escribe serializado → 1 conexión; PG → pool acotado
+	if driver == "pgx" {
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(30 * time.Minute)
+	} else {
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	}
 
 	//fallar rápido si la base no responde (5s)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -99,6 +113,30 @@ func main() {
 	fmt.Println("✏️  PUT /frases/{id}    -Actualizar una frase")
 	fmt.Println("🗑️  DELETE /frases/{id} -Eliminar una frase")
 
-	//empezar y escuchar al servidor
-	log.Fatal(http.ListenAndServe(":8000", transport.WithCors(os.Getenv("CORS_ALLOWED_ORIGINS"), mux)))
+	//servidor con timeouts (hallazgo 10) y apagado graceful ante señales
+	srv := &http.Server{
+		Addr:              ":8000",
+		Handler:           transport.WithCors(os.Getenv("CORS_ALLOWED_ORIGINS"), mux),
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("servidor: %v", err)
+		}
+	}()
+
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-sigCtx.Done()
+	log.Println("apagando servidor...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown forzado: %v", err)
+	}
 }
