@@ -1,0 +1,14 @@
+# Binarios
+/app
+main
+
+# macOS
+.DS_Store
+
+# Bases locales (dev; producción usa DATABASE_URL/Postgres)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
