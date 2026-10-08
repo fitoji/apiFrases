@@ -88,6 +88,15 @@ func (h *FraseHandler) HandleFraseRandom(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// actualizarFraseRequest es el DTO puntero del PUT parcial (hallazgo 8):
+// nil = campo no enviado = conservar el valor guardado.
+type actualizarFraseRequest struct {
+	Frase               *string `json:"frase"`
+	FraseIdiomaOriginal *string `json:"original"`
+	Autor               *string `json:"autor"`
+	Categoria           *string `json:"categoria"`
+}
+
 func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/frases/")
 	id, err := strconv.Atoi(idStr)
@@ -113,13 +122,40 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 			log.Printf("error al escribir respuesta de frase por id: %v", err)
 		}
 	case http.MethodPut:
-		var frase model.Frase
-		if err := json.NewDecoder(r.Body).Decode(&frase); err != nil {
+		var peticion actualizarFraseRequest
+		if err := json.NewDecoder(r.Body).Decode(&peticion); err != nil {
 			http.Error(w, "input invalido", http.StatusBadRequest)
 			return
 		}
 
-		updated, err := h.service.ActualizarFrase(id, frase)
+		// Merge tipo PATCH (hallazgo 8): traemos lo guardado y pisamos solo
+		// los campos enviados. Un "frase" vacío explícito salta el fetch para
+		// que el centinela del service siga respondiendo 400 aunque el id no
+		// exista (así lo exige el PUT vacío existente).
+		fraseActualizada := model.Frase{}
+		fraseVaciaExplicita := peticion.Frase != nil && *peticion.Frase == ""
+		if !fraseVaciaExplicita {
+			guardada, err := h.service.ObtenFrasePorID(id)
+			if err != nil {
+				http.Error(w, "No lo encontramos!", http.StatusNotFound)
+				return
+			}
+			fraseActualizada = *guardada
+		}
+		if peticion.Frase != nil {
+			fraseActualizada.Frase = *peticion.Frase
+		}
+		if peticion.FraseIdiomaOriginal != nil {
+			fraseActualizada.FraseIdiomaOriginal = *peticion.FraseIdiomaOriginal
+		}
+		if peticion.Autor != nil {
+			fraseActualizada.Autor = *peticion.Autor
+		}
+		if peticion.Categoria != nil {
+			fraseActualizada.Categoria = *peticion.Categoria
+		}
+
+		updated, err := h.service.ActualizarFrase(id, fraseActualizada)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "No lo encontramos!", http.StatusNotFound)
