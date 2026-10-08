@@ -12,3 +12,8 @@ main
 
 # Logs
 *.log
+
+# Entorno local (secretos)
+.env
+.env.*
+!.env.example
