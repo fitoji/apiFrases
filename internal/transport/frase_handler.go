@@ -109,7 +109,9 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(frase)
+		if err := json.NewEncoder(w).Encode(frase); err != nil {
+			log.Printf("error al escribir respuesta de frase por id: %v", err)
+		}
 	case http.MethodPut:
 		var frase model.Frase
 		if err := json.NewDecoder(r.Body).Decode(&frase); err != nil {
@@ -133,7 +135,9 @@ func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) 
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(updated)
+		if err := json.NewEncoder(w).Encode(updated); err != nil {
+			log.Printf("error al escribir respuesta de frase actualizada: %v", err)
+		}
 
 	case http.MethodDelete:
 		if err := h.service.Borrar(id); err != nil {
