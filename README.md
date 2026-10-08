@@ -71,12 +71,31 @@ curl -X PUT http://localhost:8000/frases/1 \
 curl -X DELETE http://localhost:8000/frases/1   # → 204 sin cuerpo
 ```
 
+## Autenticación
+
+Las lecturas (`GET`) son públicas. Las escrituras (`POST`, `PUT`, `DELETE`) exigen la cabecera `X-API-Key` con el valor de la variable de entorno `API_KEY`:
+
+- `API_KEY` es **opcional**: si no está definida, las escrituras responden `401` (fail-closed: una API sin clave configurada no acepta escrituras).
+- Con `API_KEY` definida, cualquier método distinto de `GET`/`OPTIONS` sin la cabecera correcta responde `401 credenciales invalidas`.
+- El preflight `OPTIONS` lo intercepta el middleware CORS antes que el de autenticación; los navegadores no necesitan la cabecera.
+
+```bash
+API_KEY=MI_CLAVE_SECRETA go run .
+
+curl -X POST http://localhost:8000/frases \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: MI_CLAVE_SECRETA' \
+  -d '{"frase":"El dolor es inevitable, el sufrimiento es opcional.","original":"Sabbe saṅkhārā aniccā","autor":"Buda","categoria":"budismo"}'
+# → 201 + la frase creada; sin la cabecera o con clave incorrecta → 401 "credenciales invalidas"
+```
+
 ## Códigos de estado
 
 | Código | Cuándo ocurre |
 |--------|---------------|
 | `200` / `201` / `204` | Éxito (consulta / creación / borrado). |
 | `400` | JSON mal formado, o `{id}` no es numérico. |
+| `401` | Escritura sin `X-API-Key` válida, o `API_KEY` sin definir. |
 | `404` | ID inexistente, o `/frases/random` sobre tabla vacía. |
 | `405` | Método HTTP no soportado en la ruta. |
 | `500` | Error de base de datos, `frase` vacía (`necesitamos una frase`), u otro campo obligatorio faltante (restricción `NOT NULL`). |
@@ -138,7 +157,7 @@ API_URL=https://<tu-servicio>.onrender.com/frases python3 seed_frases.py
 
 - CORS incluido: por defecto responde `Access-Control-Allow-Origin: *` y maneja los preflights `OPTIONS`. Para restringir orígenes: `CORS_ALLOWED_ORIGINS="https://app.com,https://admin.com" go run .` (solo esos orígenes reciben las cabeceras).
 - Tests de store (`internal/store`) y de CORS (`internal/transport`), en memoria con SQLite.
-- Sin autenticación: el CRUD está abierto.
+- Autenticación por API key: las lecturas (`GET`) son públicas y las escrituras requieren `X-API-Key` cuando `API_KEY` está definida (ver [Autenticación](#autenticación)).
 - Puerto fijo en `8000`.
 
 ## Documentación relacionada

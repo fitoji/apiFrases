@@ -116,7 +116,7 @@ func main() {
 	//servidor con timeouts (hallazgo 10) y apagado graceful ante señales
 	srv := &http.Server{
 		Addr:              ":8000",
-		Handler:           transport.WithCors(os.Getenv("CORS_ALLOWED_ORIGINS"), mux),
+		Handler:           transport.WithCors(os.Getenv("CORS_ALLOWED_ORIGINS"), transport.WithAuth(os.Getenv("API_KEY"), mux)),
 		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      10 * time.Second,
