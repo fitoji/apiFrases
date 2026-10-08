@@ -1,10 +1,7 @@
 # .golangci.yml
 # Le indica a VS Code y otros editores qué esquema usar para la validación y el autocompletado.
 #yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
-# Configuración para golangci-lint
-
-# Especifica la versión del formato de configuración. Es obligatorio.
-version: '2'
+# Configuración para golangci-lint (esquema v1 — binario instalado: v1.64.8)
 
 run:
   # Tiempo máximo de ejecución para el linter. 5 minutos es generoso.
@@ -19,6 +16,13 @@ linters:
     errcheck:
       # Comprobar asignaciones en blanco: _, err := func()
       check-blank: true
+    gofmt:
+      # Simplificar código (ej: a[i:len(a)] -> a[i:])
+      simplify: true
+    goimports:
+      # Prefijos locales para agrupar tus paquetes primero.
+      local-prefixes:
+        - aprende-golang
   enable:
     # --- Linters Esenciales ---
     - errcheck # Verifica que los errores retornados sean comprobados.
@@ -27,12 +31,3 @@ linters:
     - revive # Un linter rápido, configurable y estilístico. Reemplazo de golint.
     - staticcheck # Un conjunto enorme de chequeos estáticos muy valiosos.
     - unused # Verifica si hay código no utilizado.
-
-formatters:
-  settings:
-    gofmt:
-      # Simplificar código (ej: a[i:len(a)] -> a[i:])
-      simplify: true
-    goimports:
-      # Prefijos locales para agrupar tus paquetes primero.
-      local-prefixes: [aprende-golang]

@@ -33,7 +33,9 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(frases)
+		if err := json.NewEncoder(w).Encode(frases); err != nil {
+			log.Printf("error al escribir respuesta de frases: %v", err)
+		}
 
 	case http.MethodPost:
 		var frase model.Frase
@@ -55,7 +57,9 @@ func (h *FraseHandler) HandleFrases(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(creado)
+		if err := json.NewEncoder(w).Encode(creado); err != nil {
+			log.Printf("error al escribir respuesta de frase creada: %v", err)
+		}
 
 	default:
 		http.Error(w, "Metodo no disponible!", http.StatusMethodNotAllowed)
@@ -79,7 +83,9 @@ func (h *FraseHandler) HandleFraseRandom(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(frase)
+	if err := json.NewEncoder(w).Encode(frase); err != nil {
+		log.Printf("error al escribir respuesta de frase random: %v", err)
+	}
 }
 
 func (h *FraseHandler) HandleFrasePorID(w http.ResponseWriter, r *http.Request) {
